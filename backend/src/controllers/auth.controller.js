@@ -528,6 +528,64 @@ async function resendEmailOtp(req, res, next) {
 }
 
 
+async function forgotPassword(req, res, next) {
+  try {
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const user = await User.unscoped().findOne({ where: { email } });
+    if (!user || !["CUSTOMER", "SERVICE_PROVIDER"].includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Password reset is available only for customer and service-provider accounts.",
+      });
+    }
+    if (!user.isVerified || !user.isActive || user.authProvider !== "LOCAL") {
+      return res.status(400).json({ success: false, message: "This account cannot use password reset." });
+    }
+    await issueOtp(user, "PASSWORD_RESET");
+    return res.status(200).json({
+      success: true,
+      message: "A password reset code was sent to your email.",
+      data: { email: user.email },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function resetPassword(req, res, next) {
+  const transaction = await sequelize.transaction();
+  try {
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const otp = String(req.body.otp || "").trim();
+    const newPassword = String(req.body.newPassword || "");
+    if (!/^\d{6}$/.test(otp) || newPassword.length < 8 || newPassword.length > 72) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Enter the 6-digit code and a password of at least 8 characters.",
+      });
+    }
+
+    const user = await User.unscoped().findOne({ where: { email }, transaction });
+    if (!user || !["CUSTOMER", "SERVICE_PROVIDER"].includes(user.role)) {
+      await transaction.rollback();
+      return res.status(403).json({ success: false, message: "This account cannot use password reset." });
+    }
+
+    await validateOtp(user.id, "PASSWORD_RESET", otp, transaction);
+    user.passwordHash = await hashPassword(newPassword);
+    await user.save({ transaction });
+    await RefreshToken.update(
+      { revokedAt: new Date() },
+      { where: { userId: user.id, revokedAt: null }, transaction }
+    );
+    await transaction.commit();
+    return res.status(200).json({ success: true, message: "Password changed successfully. You can now log in." });
+  } catch (error) {
+    if (!transaction.finished) await transaction.rollback();
+    next(error);
+  }
+}
 
 
 
@@ -538,14 +596,7 @@ module.exports = {
   resendEmailOtp,
   forgotPassword,
   resetPassword,
-  changePassword,
-  googleLogin,
-  refreshToken,
-  logout,
-  googleTestLogin,
-  googleTestCallback,
-  getMyInsurancePartnerProfile,
-  updateMyInsurancePartnerProfile,
+  
 };
 
 

@@ -4,6 +4,7 @@ const {
   register,
   login,
   verifyEmailOtp,
+  
 
 
 } = require("../controllers/auth.controller");

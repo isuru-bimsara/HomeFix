@@ -471,6 +471,62 @@ async function login(req, res, next) {
 }
 
 
+async function verifyEmailOtp(req, res, next) {
+  const transaction = await sequelize.transaction();
+  try {
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const otp = String(req.body.otp || "").trim();
+    if (!email || !/^\d{6}$/.test(otp)) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: "Enter a valid email and 6-digit code." });
+    }
+
+    const user = await User.unscoped().findOne({ where: { email }, transaction });
+    if (!user || !["CUSTOMER", "SERVICE_PROVIDER"].includes(user.role)) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: "Unable to verify this account." });
+    }
+
+    if (!user.isVerified) {
+      await validateOtp(user.id, "EMAIL_VERIFICATION", otp, transaction);
+      user.isVerified = true;
+      await user.save({ transaction });
+    }
+
+    const session = await createSession(user, transaction);
+    await transaction.commit();
+    return res.status(200).json({
+      success: true,
+      message: "Email verified successfully.",
+      data: {
+        user: publicUser(user),
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+      },
+    });
+  } catch (error) {
+    if (!transaction.finished) await transaction.rollback();
+    next(error);
+  }
+}
+
+async function resendEmailOtp(req, res, next) {
+  try {
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const user = await User.unscoped().findOne({ where: { email } });
+    if (!user || !["CUSTOMER", "SERVICE_PROVIDER"].includes(user.role)) {
+      return res.status(400).json({ success: false, message: "Unable to verify this account." });
+    }
+    if (user.isVerified) {
+      return res.status(400).json({ success: false, message: "This email is already verified." });
+    }
+    await issueOtp(user, "EMAIL_VERIFICATION");
+    return res.status(200).json({ success: true, message: "A new verification code was sent." });
+  } catch (error) {
+    next(error);
+  }
+}
+
 
 
 

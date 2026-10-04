@@ -384,3 +384,112 @@ async function register(req, res, next) {
     next(error);
   }
 }
+
+
+// login
+async function login(req, res, next) {
+  try {
+    const { error, value } = loginSchema.validate(req.body, {
+      abortEarly: false,
+    });
+
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed.",
+        errors: error.details.map((item) => item.message),
+      });
+    }
+
+    const email = value.email.trim().toLowerCase();
+
+    const user = await User.unscoped().findOne({
+      where: { email },
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password.",
+      });
+    }
+
+    if (!user.passwordHash) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This account does not use password login. Please use Google login.",
+      });
+    }
+
+    const passwordValid = await comparePassword(
+      value.password,
+      user.passwordHash
+    );
+
+    if (!passwordValid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password.",
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is inactive.",
+      });
+    }
+
+    if (!user.isVerified) {
+      return res.status(403).json({
+        success: false,
+        code: "EMAIL_NOT_VERIFIED",
+        message: "Verify your email before logging in.",
+        data: {
+          email: user.email,
+          role: user.role,
+          requiresVerification: true,
+        },
+      });
+    }
+
+    const session = await createSession(user);
+
+    return res.status(200).json({
+      success: true,
+      message: "Login successful.",
+      data: {
+        user: publicUser(user),
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+
+
+
+
+
+module.exports = {
+  register,
+  login,
+  verifyEmailOtp,
+  resendEmailOtp,
+  forgotPassword,
+  resetPassword,
+  changePassword,
+  googleLogin,
+  refreshToken,
+  logout,
+  googleTestLogin,
+  googleTestCallback,
+  getMyInsurancePartnerProfile,
+  updateMyInsurancePartnerProfile,
+};
+
+

@@ -2,7 +2,9 @@ const express = require("express");
 
 const {
   register,
+  login,
   verifyEmailOtp,
+
 
 } = require("../controllers/auth.controller");
 
@@ -17,6 +19,18 @@ router.post(
   register
 );
 
+// Login
+router.post(
+  "/login",
+  login
+);
+
+
+// Logout
+router.post(
+  "/logout",
+  logout
+);
 
 
 router.post("/verify-email", verifyEmailOtp);

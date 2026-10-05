@@ -773,6 +773,35 @@ const refreshToken = async (req, res, next) => {
 };
 
 
+// logout
+async function logout(req, res, next) {
+  try {
+    const inputToken = req.body.refreshToken;
+
+    if (inputToken) {
+      const tokenHash = hashToken(inputToken);
+
+      await RefreshToken.update(
+        {
+          revokedAt: new Date(),
+        },
+        {
+          where: {
+            tokenHash,
+            revokedAt: null,
+          },
+        }
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Logged out successfully.",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 
 module.exports = {
   register,
@@ -783,7 +812,7 @@ module.exports = {
   resetPassword,
   changePassword,
   refreshToken,
-  
+  logout,
 };
 
 

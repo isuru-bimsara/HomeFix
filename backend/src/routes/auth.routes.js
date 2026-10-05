@@ -4,7 +4,10 @@ const {
   register,
   login,
   verifyEmailOtp,
-  
+  changePassword,
+  forgotPassword,
+  resetPassword,
+  refreshToken
 
 
 } = require("../controllers/auth.controller");
@@ -26,6 +29,10 @@ router.post(
   login
 );
 
+router.post(
+  "/refresh-token",
+  refreshToken
+);
 
 // Logout
 router.post(
@@ -35,16 +42,10 @@ router.post(
 
 
 router.post("/verify-email", verifyEmailOtp);
-
-
-
-// Refresh Access Token
-router.post(
-  "/refresh",
-  refreshToken
-);
-
-
+router.post("/resend-verification-otp", resendEmailOtp);
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
+router.post("/change-password", authenticate, changePassword);
 
 
 // Insurance partner profile

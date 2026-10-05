@@ -587,6 +587,191 @@ async function resetPassword(req, res, next) {
   }
 }
 
+async function changePassword(req, res, next) {
+  try {
+    const currentPassword = String(req.body.currentPassword || "");
+    const newPassword = String(req.body.newPassword || "");
+    if (newPassword.length < 8 || newPassword.length > 72) {
+      return res.status(400).json({ success: false, message: "New password must contain 8 to 72 characters." });
+    }
+    const user = await User.unscoped().findByPk(req.user.id);
+    if (!user || user.authProvider !== "LOCAL" || !user.passwordHash) {
+      return res.status(400).json({ success: false, message: "This account does not use password login." });
+    }
+    if (!(await comparePassword(currentPassword, user.passwordHash))) {
+      return res.status(400).json({ success: false, message: "Current password is incorrect." });
+    }
+    if (await comparePassword(newPassword, user.passwordHash)) {
+      return res.status(400).json({ success: false, message: "New password must be different from the current password." });
+    }
+    user.passwordHash = await hashPassword(newPassword);
+    await user.save();
+    await RefreshToken.update(
+      { revokedAt: new Date() },
+      { where: { userId: user.id, revokedAt: null } }
+    );
+    return res.status(200).json({ success: true, message: "Password changed successfully. Please log in again." });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// refresh token
+const refreshToken = async (req, res, next) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { refreshToken: rawRefreshToken } = req.body;
+
+    if (!rawRefreshToken) {
+      await transaction.rollback();
+
+      return res.status(400).json({
+        success: false,
+        message: "Refresh token is required.",
+      });
+    }
+
+    const tokenHash = hashToken(rawRefreshToken);
+
+    // Lock only the refresh token row
+    const storedToken = await RefreshToken.findOne({
+      where: {
+        tokenHash,
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!storedToken) {
+      await transaction.rollback();
+
+      return res.status(401).json({
+        success: false,
+        message: "Invalid refresh token.",
+      });
+    }
+
+    // Reuse detection
+    if (storedToken.revokedAt) {
+      await RefreshToken.update(
+        {
+          revokedAt: new Date(),
+        },
+        {
+          where: {
+            userId: storedToken.userId,
+            revokedAt: null,
+          },
+          transaction,
+        }
+      );
+
+      await transaction.commit();
+
+      return res.status(401).json({
+        success: false,
+        message: "Refresh token reuse detected. Please login again.",
+      });
+    }
+
+    // Check expiration
+    if (new Date(storedToken.expiresAt) <= new Date()) {
+      await storedToken.update(
+        {
+          revokedAt: new Date(),
+        },
+        {
+          transaction,
+        }
+      );
+
+      await transaction.commit();
+
+      return res.status(401).json({
+        success: false,
+        message: "Refresh token expired. Please login again.",
+      });
+    }
+
+    // Get user separately
+    const user = await User.findByPk(storedToken.userId, {
+      transaction,
+    });
+
+    if (!user) {
+      await transaction.rollback();
+
+      return res.status(401).json({
+        success: false,
+        message: "User account not found.",
+      });
+    }
+
+    if (!user.isActive) {
+      await transaction.rollback();
+
+      return res.status(403).json({
+        success: false,
+        message: "User account is inactive.",
+      });
+    }
+
+    // Create new access token
+    const newAccessToken = generateAccessToken(user);
+
+    // Create new refresh token
+    const newRefreshToken = generateRefreshToken();
+
+    const newTokenHash = hashToken(newRefreshToken);
+
+    const newExpiresAt = new Date(
+      Date.now() +
+        Number(process.env.REFRESH_TOKEN_DAYS || 30) *
+          24 *
+          60 *
+          60 *
+          1000
+    );
+
+    const newStoredToken = await RefreshToken.create(
+      {
+        userId: user.id,
+        tokenHash: newTokenHash,
+        expiresAt: newExpiresAt,
+      },
+      {
+        transaction,
+      }
+    );
+
+    // Revoke old token and link it to new token
+    await storedToken.update(
+      {
+        revokedAt: new Date(),
+        replacedByTokenId: newStoredToken.id,
+      },
+      {
+        transaction,
+      }
+    );
+
+    await transaction.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: "Token refreshed successfully.",
+      data: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      },
+    });
+  } catch (error) {
+    await transaction.rollback();
+    next(error);
+  }
+};
+
 
 
 module.exports = {
@@ -596,6 +781,8 @@ module.exports = {
   resendEmailOtp,
   forgotPassword,
   resetPassword,
+  changePassword,
+  refreshToken,
   
 };
 

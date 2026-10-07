@@ -5,6 +5,9 @@ const RefreshToken = require("./RefreshToken");
 const Notification = require("./Notification");
 const NotificationDevice = require("./NotificationDevice");
 const EmailOtp = require("./EmailOtp");
+const InsuranceClaim = require("./InsuranceClaim");
+const InsuranceClaimImage = require("./InsuranceClaimImage");
+const InsurancePartnerProfile = require("./InsurancePartnerProfile");
 
 // customer profile
 User.hasMany(Notification, { foreignKey: "userId", as: "notifications", onDelete: "CASCADE" });
@@ -45,6 +48,54 @@ User.hasMany(RefreshToken, {
 });
 
 RefreshToken.belongsTo(User, {
+  foreignKey: "userId",
+  as: "user",
+});
+
+// insurance claims
+
+User.hasMany(InsuranceClaim, {
+  foreignKey: "serviceProviderId",
+  as: "providerInsuranceClaims",
+});
+
+InsuranceClaim.belongsTo(User, {
+  foreignKey: "serviceProviderId",
+  as: "serviceProvider",
+});
+
+User.hasMany(InsuranceClaim, {
+  foreignKey: "reviewedByPartnerId",
+  as: "reviewedInsuranceClaims",
+});
+
+InsuranceClaim.belongsTo(User, {
+  foreignKey: "reviewedByPartnerId",
+  as: "reviewedByPartner",
+});
+
+// insurance claim images
+
+InsuranceClaim.hasMany(InsuranceClaimImage, {
+  foreignKey: "claimId",
+  as: "images",
+  onDelete: "CASCADE",
+});
+
+InsuranceClaimImage.belongsTo(InsuranceClaim, {
+  foreignKey: "claimId",
+  as: "claim",
+});
+
+// insurance partner profile
+
+User.hasOne(InsurancePartnerProfile, {
+  foreignKey: "userId",
+  as: "insurancePartnerProfile",
+  onDelete: "CASCADE",
+});
+
+InsurancePartnerProfile.belongsTo(User, {
   foreignKey: "userId",
   as: "user",
 });

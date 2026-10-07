@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "HomeFix App",
+    "slug": "homefix-app",
+    "version": "1.0.0",
+    "owner": "isuru_bee",
+    "orientation": "portrait",
+    "icon": "./assets/homefix-logo-opaque-white-v2.png",
+    "scheme": "mobile",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "icon": "./assets/expo.icon"
+    },
+    "android": {
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/homefix-logo-opaque-white-v2.png",
+        "monochromeImage": "./assets/homefix-logo-opaque-white-v2.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.homefix.app"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/homefix-logo-opaque-white-v2.png",
+          "imageWidth": 160
+        }
+      ],
+      "expo-secure-store",
+      "expo-notifications",
+      "@react-native-google-signin/google-signin"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "624f3763-2e26-4552-a022-bc0fb4e50287"
+      }
+    }
+  }
+}

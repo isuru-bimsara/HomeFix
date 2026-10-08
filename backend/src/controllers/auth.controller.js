@@ -803,6 +803,219 @@ async function logout(req, res, next) {
   }
 }
 
+async function getMyInsurancePartnerProfile(
+  req,
+  res,
+  next
+) {
+  try {
+    if (req.user.role !== "INSURANCE_PARTNER") {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Only insurance partners can access this profile.",
+      });
+    }
+
+    const profile =
+      await InsurancePartnerProfile.findOne({
+        where: {
+          userId: req.user.id,
+        },
+
+        include: [
+          {
+            model: User,
+            as: "user",
+            attributes: [
+              "id",
+              "email",
+              "role",
+              "isVerified",
+              "isActive",
+              "accountStatus",
+            ],
+          },
+        ],
+      });
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Insurance partner profile not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: profile.id,
+        partnerId: profile.partnerId,
+        partnerName: profile.partnerName,
+        companyName: profile.companyName,
+        coverageRegion: profile.coverageRegion,
+        supportHours: profile.supportHours,
+        businessEmail: profile.businessEmail,
+        phoneNumber: profile.phoneNumber,
+        claimsTeam: profile.claimsTeam,
+
+        account: {
+          id: profile.user.id,
+          email: profile.user.email,
+          role: profile.user.role,
+          isVerified: profile.user.isVerified,
+          isActive: profile.user.isActive,
+          accountStatus: profile.user.accountStatus,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function updateMyInsurancePartnerProfile(
+  req,
+  res,
+  next
+) {
+  try {
+    if (req.user.role !== "INSURANCE_PARTNER") {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Only insurance partners can update this profile.",
+      });
+    }
+
+    const profile =
+      await InsurancePartnerProfile.findOne({
+        where: {
+          userId: req.user.id,
+        },
+      });
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Insurance partner profile not found.",
+      });
+    }
+
+    const {
+      companyName,
+      partnerName,
+      coverageRegion,
+      supportHours,
+      businessEmail,
+      phoneNumber,
+      claimsTeam,
+    } = req.body;
+
+    if (partnerName !== undefined && partnerName !== null) {
+      profile.partnerName = String(partnerName).trim() || null;
+    }
+
+    if (
+      companyName !== undefined &&
+      companyName !== null
+    ) {
+      profile.companyName =
+        String(companyName).trim() || null;
+    }
+
+    if (
+      coverageRegion !== undefined &&
+      coverageRegion !== null
+    ) {
+      profile.coverageRegion =
+        String(coverageRegion).trim() || null;
+    }
+
+    if (
+      supportHours !== undefined &&
+      supportHours !== null
+    ) {
+      profile.supportHours =
+        String(supportHours).trim() || null;
+    }
+
+    if (
+      businessEmail !== undefined &&
+      businessEmail !== null
+    ) {
+      const cleanEmail =
+        String(businessEmail)
+          .trim()
+          .toLowerCase();
+
+      if (cleanEmail) {
+        const emailExists =
+          await InsurancePartnerProfile.findOne({
+            where: {
+              businessEmail: cleanEmail,
+            },
+          });
+
+        if (
+          emailExists &&
+          emailExists.userId !== req.user.id
+        ) {
+          return res.status(409).json({
+            success: false,
+            message:
+              "This business email is already being used.",
+          });
+        }
+
+        profile.businessEmail = cleanEmail;
+      } else {
+        profile.businessEmail = null;
+      }
+    }
+
+    if (
+      phoneNumber !== undefined &&
+      phoneNumber !== null
+    ) {
+      profile.phoneNumber =
+        String(phoneNumber).trim() || null;
+    }
+
+    if (
+      claimsTeam !== undefined &&
+      claimsTeam !== null
+    ) {
+      profile.claimsTeam =
+        String(claimsTeam).trim() || null;
+    }
+
+    await profile.save();
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Insurance partner profile updated successfully.",
+
+      data: {
+        id: profile.id,
+        partnerId: profile.partnerId,
+        partnerName: profile.partnerName,
+        companyName: profile.companyName,
+        coverageRegion: profile.coverageRegion,
+        supportHours: profile.supportHours,
+        businessEmail: profile.businessEmail,
+        phoneNumber: profile.phoneNumber,
+        claimsTeam: profile.claimsTeam,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -813,6 +1026,8 @@ module.exports = {
   changePassword,
   refreshToken,
   logout,
+  getMyInsurancePartnerProfile,
+  updateMyInsurancePartnerProfile,
 };
 
 

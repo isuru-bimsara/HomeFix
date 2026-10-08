@@ -99,3 +99,14 @@ InsurancePartnerProfile.belongsTo(User, {
   foreignKey: "userId",
   as: "user",
 });
+
+module.exports = {
+  user,
+  CustomerProfile,
+  ServiceProviderProfile,
+  RefreshToken,
+  InsuranceClaim,
+  InsuranceClaimImage,
+  InsurancePartnerProfile,
+
+};

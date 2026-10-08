@@ -1064,70 +1064,6 @@ async function logout(req, res, next) {
   }
 }
 
-// temporary Google testing
-async function googleTestLogin(req, res, next) {
-  try {
-    const authUrl = googleClient.generateAuthUrl({
-      access_type: "offline",
-      scope: ["openid", "email", "profile"],
-      prompt: "select_account",
-      redirect_uri:
-        "http://localhost:5000/api/auth/google/callback",
-    });
-
-    return res.redirect(authUrl);
-  } catch (error) {
-    next(error);
-  }
-}
-
-async function googleTestCallback(req, res, next) {
-  try {
-    const { code } = req.query;
-
-    if (!code) {
-      return res.status(400).json({
-        success: false,
-        message: "Google authorization code is missing.",
-      });
-    }
-
-    const { tokens } = await googleClient.getToken(code);
-
-    if (!tokens.id_token) {
-      return res.status(400).json({
-        success: false,
-        message: "Google did not return an ID token.",
-      });
-    }
-
-    const ticket = await googleClient.verifyIdToken({
-      idToken: tokens.id_token,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-
-    const payload = ticket.getPayload();
-
-    return res.json({
-      success: true,
-      message: "Google ID token generated successfully.",
-      data: {
-        idToken: tokens.id_token,
-        googleUser: {
-          googleId: payload.sub,
-          email: payload.email,
-          emailVerified: payload.email_verified,
-          firstName: payload.given_name,
-          lastName: payload.family_name,
-          picture: payload.picture,
-        },
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
 async function getMyInsurancePartnerProfile(
   req,
   res,
@@ -1352,8 +1288,6 @@ module.exports = {
   googleLogin,
   refreshToken,
   logout,
-  googleTestLogin,
-  googleTestCallback,
   getMyInsurancePartnerProfile,
   updateMyInsurancePartnerProfile,
 };

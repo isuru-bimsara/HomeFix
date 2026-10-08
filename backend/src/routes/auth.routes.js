@@ -4,11 +4,18 @@ const {
   register,
   login,
   verifyEmailOtp,
-  changePassword,
+  resendEmailOtp,
   forgotPassword,
   resetPassword,
-  refreshToken
+  changePassword,
+  googleLogin,
+  refreshToken,
+  logout,
+    googleTestLogin,
+    googleTestCallback,
 
+    getMyInsurancePartnerProfile,
+    updateMyInsurancePartnerProfile,
 
 } = require("../controllers/auth.controller");
 
@@ -27,6 +34,12 @@ router.post(
 router.post(
   "/login",
   login
+);
+
+// Google Login
+router.post(
+  "/google",
+  googleLogin
 );
 
 router.post(

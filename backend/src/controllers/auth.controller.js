@@ -385,7 +385,6 @@ async function register(req, res, next) {
   }
 }
 
-
 // login
 async function login(req, res, next) {
   try {
@@ -470,6 +469,270 @@ async function login(req, res, next) {
   }
 }
 
+// Google login/register
+async function googleLogin(req, res, next) {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const idToken = String(req.body.idToken || "").trim();
+
+    if (!idToken) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Google ID token is required.",
+      });
+    }
+
+    const clientIds = process.env.GOOGLE_CLIENT_IDS
+      ? process.env.GOOGLE_CLIENT_IDS
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean)
+      : [];
+
+    if (clientIds.length === 0) {
+      await transaction.rollback();
+
+      return res.status(500).json({
+        success: false,
+        message: "Google authentication is not configured.",
+      });
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: clientIds,
+    });
+
+    const payload = ticket.getPayload();
+
+    if (!payload) {
+      await transaction.rollback();
+
+      return res.status(401).json({
+        success: false,
+        message: "Invalid Google token.",
+      });
+    }
+
+    const googleId = payload.sub;
+
+    const email = payload.email?.trim().toLowerCase();
+
+    const emailVerified = payload.email_verified;
+
+    const googlePicture = payload.picture || null;
+
+    if (!googleId || !email || !emailVerified) {
+      await transaction.rollback();
+
+      return res.status(401).json({
+        success: false,
+        message: "Google account verification failed.",
+      });
+    }
+
+    // find by Google ID
+    let user = await User.unscoped().findOne({
+      where: {
+        googleId,
+      },
+      transaction,
+    });
+
+    // find by email
+    if (!user) {
+      user = await User.unscoped().findOne({
+        where: {
+          email,
+        },
+        transaction,
+      });
+    }
+
+    // Existing Google accounts log in immediately. Registration details are
+    // only required the first time this Google account is used.
+    if (!user && !req.body.role) {
+      await transaction.rollback();
+      return res.status(409).json({
+        success: false,
+        code: "GOOGLE_REGISTRATION_REQUIRED",
+        message: "Choose a role and complete your profile to continue.",
+        data: {
+          email,
+          firstName: payload.given_name || "",
+          lastName: payload.family_name || "",
+        },
+      });
+    }
+
+    let registrationValue = req.body;
+    if (!user) {
+      const { error, value } = validateGoogleRegister(req.body);
+      if (error) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed.",
+          errors: error.details.map((item) => item.message),
+        });
+      }
+      registrationValue = value;
+    }
+
+    const {
+      role: requestedRole,
+      firstName,
+      lastName,
+      phoneNumber,
+      town,
+      homeAddress,
+      serviceLocation,
+      serviceCategory,
+      experienceYears,
+      hourlyRate,
+      description,
+    } = registrationValue;
+
+    // existing user
+    if (user) {
+      if (requestedRole && user.role !== requestedRole) {
+        await transaction.rollback();
+
+        return res.status(409).json({
+          success: false,
+          message: `This Google account is registered as ${user.role}. You cannot login using ${requestedRole}.`,
+          code: "ROLE_MISMATCH",
+        });
+      }
+
+      if (user.googleId && user.googleId !== googleId) {
+        await transaction.rollback();
+
+        return res.status(409).json({
+          success: false,
+          message:
+            "This email is already linked to another Google account.",
+        });
+      }
+
+      if (!user.googleId && user.authProvider === "LOCAL") {
+        await transaction.rollback();
+
+        return res.status(409).json({
+          success: false,
+          message:
+            "An account with this email already exists. Please login with your password first.",
+          code: "LOCAL_ACCOUNT_EXISTS",
+        });
+      }
+
+      user.googleId = googleId;
+      user.googleProfileImageUrl = googlePicture;
+      user.isVerified = true;
+
+      if (user.profileImageSource !== "CUSTOM") {
+        user.profileImageUrl = googlePicture;
+        user.profileImageSource = googlePicture
+          ? "GOOGLE"
+          : "NONE";
+      }
+
+      await user.save({
+        transaction,
+      });
+    }
+
+    // new Google user
+    else {
+      const newUser = await User.create(
+        {
+          email,
+          googleId,
+          authProvider: "GOOGLE",
+          role: requestedRole,
+          isVerified: true,
+          isActive: true,
+          profileImageUrl: googlePicture,
+          googleProfileImageUrl: googlePicture,
+          profileImageSource: googlePicture
+            ? "GOOGLE"
+            : "NONE",
+        },
+        {
+          transaction,
+        }
+      );
+
+      user = newUser;
+
+      // customer Google profile
+      if (requestedRole === "CUSTOMER") {
+        await CustomerProfile.create(
+          {
+            userId: user.id,
+            firstName,
+            lastName,
+            phoneNumber,
+            town,
+            homeAddress,
+          },
+          {
+            transaction,
+          }
+        );
+      }
+
+      // service provider Google profile
+      if (requestedRole === "SERVICE_PROVIDER") {
+        await ServiceProviderProfile.create(
+          {
+            userId: user.id,
+            firstName,
+            lastName,
+            phoneNumber,
+            serviceLocation,
+            serviceCategory,
+            experienceYears,
+            hourlyRate,
+            description,
+            verificationStatus: "REGISTERED",
+          },
+          {
+            transaction,
+          }
+        );
+      }
+    }
+
+    if (!user.isActive) {
+      await transaction.rollback();
+
+      return res.status(403).json({
+        success: false,
+        message: "Your account is inactive.",
+      });
+    }
+
+    const session = await createSession(user, transaction);
+
+    await transaction.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: "Google login successful.",
+      data: {
+        user: publicUser(user),
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+      },
+    });
+  } catch (error) {
+    await transaction.rollback();
+    next(error);
+  }
+}
 
 async function verifyEmailOtp(req, res, next) {
   const transaction = await sequelize.transaction();
@@ -526,7 +789,6 @@ async function resendEmailOtp(req, res, next) {
     next(error);
   }
 }
-
 
 async function forgotPassword(req, res, next) {
   try {
@@ -772,7 +1034,6 @@ const refreshToken = async (req, res, next) => {
   }
 };
 
-
 // logout
 async function logout(req, res, next) {
   try {
@@ -803,6 +1064,219 @@ async function logout(req, res, next) {
   }
 }
 
+async function getMyInsurancePartnerProfile(
+  req,
+  res,
+  next
+) {
+  try {
+    if (req.user.role !== "INSURANCE_PARTNER") {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Only insurance partners can access this profile.",
+      });
+    }
+
+    const profile =
+      await InsurancePartnerProfile.findOne({
+        where: {
+          userId: req.user.id,
+        },
+
+        include: [
+          {
+            model: User,
+            as: "user",
+            attributes: [
+              "id",
+              "email",
+              "role",
+              "isVerified",
+              "isActive",
+              "accountStatus",
+            ],
+          },
+        ],
+      });
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Insurance partner profile not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: profile.id,
+        partnerId: profile.partnerId,
+        partnerName: profile.partnerName,
+        companyName: profile.companyName,
+        coverageRegion: profile.coverageRegion,
+        supportHours: profile.supportHours,
+        businessEmail: profile.businessEmail,
+        phoneNumber: profile.phoneNumber,
+        claimsTeam: profile.claimsTeam,
+
+        account: {
+          id: profile.user.id,
+          email: profile.user.email,
+          role: profile.user.role,
+          isVerified: profile.user.isVerified,
+          isActive: profile.user.isActive,
+          accountStatus: profile.user.accountStatus,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function updateMyInsurancePartnerProfile(
+  req,
+  res,
+  next
+) {
+  try {
+    if (req.user.role !== "INSURANCE_PARTNER") {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Only insurance partners can update this profile.",
+      });
+    }
+
+    const profile =
+      await InsurancePartnerProfile.findOne({
+        where: {
+          userId: req.user.id,
+        },
+      });
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Insurance partner profile not found.",
+      });
+    }
+
+    const {
+      companyName,
+      partnerName,
+      coverageRegion,
+      supportHours,
+      businessEmail,
+      phoneNumber,
+      claimsTeam,
+    } = req.body;
+
+    if (partnerName !== undefined && partnerName !== null) {
+      profile.partnerName = String(partnerName).trim() || null;
+    }
+
+    if (
+      companyName !== undefined &&
+      companyName !== null
+    ) {
+      profile.companyName =
+        String(companyName).trim() || null;
+    }
+
+    if (
+      coverageRegion !== undefined &&
+      coverageRegion !== null
+    ) {
+      profile.coverageRegion =
+        String(coverageRegion).trim() || null;
+    }
+
+    if (
+      supportHours !== undefined &&
+      supportHours !== null
+    ) {
+      profile.supportHours =
+        String(supportHours).trim() || null;
+    }
+
+    if (
+      businessEmail !== undefined &&
+      businessEmail !== null
+    ) {
+      const cleanEmail =
+        String(businessEmail)
+          .trim()
+          .toLowerCase();
+
+      if (cleanEmail) {
+        const emailExists =
+          await InsurancePartnerProfile.findOne({
+            where: {
+              businessEmail: cleanEmail,
+            },
+          });
+
+        if (
+          emailExists &&
+          emailExists.userId !== req.user.id
+        ) {
+          return res.status(409).json({
+            success: false,
+            message:
+              "This business email is already being used.",
+          });
+        }
+
+        profile.businessEmail = cleanEmail;
+      } else {
+        profile.businessEmail = null;
+      }
+    }
+
+    if (
+      phoneNumber !== undefined &&
+      phoneNumber !== null
+    ) {
+      profile.phoneNumber =
+        String(phoneNumber).trim() || null;
+    }
+
+    if (
+      claimsTeam !== undefined &&
+      claimsTeam !== null
+    ) {
+      profile.claimsTeam =
+        String(claimsTeam).trim() || null;
+    }
+
+    await profile.save();
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Insurance partner profile updated successfully.",
+
+      data: {
+        id: profile.id,
+        partnerId: profile.partnerId,
+        partnerName: profile.partnerName,
+        companyName: profile.companyName,
+        coverageRegion: profile.coverageRegion,
+        supportHours: profile.supportHours,
+        businessEmail: profile.businessEmail,
+        phoneNumber: profile.phoneNumber,
+        claimsTeam: profile.claimsTeam,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -811,8 +1285,9 @@ module.exports = {
   forgotPassword,
   resetPassword,
   changePassword,
+  googleLogin,
   refreshToken,
   logout,
+  getMyInsurancePartnerProfile,
+  updateMyInsurancePartnerProfile,
 };
-
-

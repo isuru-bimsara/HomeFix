@@ -1,0 +1,4 @@
+import { Pressable, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+export default function BookingStatusSuccess() { const router = useRouter(); const { title, bookingId } = useLocalSearchParams(); return <View className="flex-1 items-center justify-center bg-[#EAF2EF] px-8"><View className="w-full items-center rounded-3xl bg-white px-6 py-10"><Ionicons name="checkmark-circle-outline" size={64} color="#008568" /><Text className="mt-4 text-xl font-bold text-[#17342F]">{title || "Updated"}</Text><Pressable onPress={() => router.replace({ pathname: "/ServiceProvider/(tabs)/booking/[id]", params: { id: bookingId } })} className="mt-6 rounded-full bg-[#008568] px-10 py-3"><Text className="font-bold text-white">OK</Text></Pressable></View></View>; }

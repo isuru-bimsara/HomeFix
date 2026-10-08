@@ -1,7 +1,318 @@
-import React,{useCallback,useMemo,useState}from"react";import{ActivityIndicator,Alert,Pressable,ScrollView,Text,View}from"react-native";import{Ionicons}from"@expo/vector-icons";import{useFocusEffect,useRouter}from"expo-router";import{getProviderBookings}from"../../../../lib/booking";import{getMyClaims}from"../../../../lib/insuranceClaim";import{StatusBars,VerticalBarChart}from"../../../components/dashboard/DashboardCharts";
+import React, { useCallback, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useRouter } from "expo-router";
 
-const dayLabels=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-export default function ProviderDashboard(){const router=useRouter();const[bookings,setBookings]=useState([]);const[claims,setClaims]=useState([]);const[loading,setLoading]=useState(true);const load=useCallback(async()=>{try{const[b,c]=await Promise.all([getProviderBookings(),getMyClaims()]);setBookings(b.bookings||[]);setClaims(c.claims||[]);}catch(e){Alert.alert("Dashboard unavailable",e?.response?.data?.message||"Please try again.");}finally{setLoading(false);}},[]);useFocusEffect(useCallback(()=>{load();},[load]));const stats=useMemo(()=>({pending:bookings.filter(x=>x.status==="PENDING").length,accepted:bookings.filter(x=>["ACCEPTED","WORKING"].includes(x.status)).length,completed:bookings.filter(x=>x.status==="COMPLETED").length,rejected:bookings.filter(x=>x.status==="REJECTED").length}),[bookings]);const week=useMemo(()=>dayLabels.map((label,index)=>({label,value:bookings.filter(x=>x.status==="COMPLETED"&&new Date(x.completedAt||x.updatedAt).getDay()===index).length})),[bookings]);const months=useMemo(()=>{const now=new Date();return Array.from({length:6},(_,offset)=>{const d=new Date(now.getFullYear(),now.getMonth()-5+offset,1);return{label:d.toLocaleDateString([],{month:"short"}),value:bookings.filter(x=>{const created=new Date(x.createdAt);return created.getMonth()===d.getMonth()&&created.getFullYear()===d.getFullYear();}).length};});},[bookings]);if(loading)return<View className="flex-1 items-center justify-center bg-[#EAF2EF]"><ActivityIndicator color="#008568"/></View>;return<ScrollView className="flex-1 bg-[#EAF2EF]" contentContainerStyle={{padding:20,paddingTop:52,paddingBottom:35}}><Text className="text-2xl font-bold text-[#17342F]">Provider Dashboard</Text><Text className="mt-1 text-xs text-[#71807C]">Your live workload and service activity</Text><View className="mt-5 flex-row items-center rounded-2xl bg-white p-4"><View className="h-3 w-3 rounded-full bg-[#00A47B]"/><View className="ml-3 flex-1"><Text className="font-bold text-[#17342F]">Available</Text><Text className="text-[10px] text-[#71807C]">Online · Accepting new jobs</Text></View></View><Text className="mb-2 mt-6 font-bold text-[#17342F]">Booking Overview</Text><View className="flex-row flex-wrap justify-between"><Stat label="Pending" value={stats.pending}/><Stat label="Accepted / Working" value={stats.accepted}/><Stat label="Completed" value={stats.completed}/><Stat label="Rejected" value={stats.rejected}/></View><ChartCard title="Weekly Completions"><VerticalBarChart data={week}/></ChartCard><ChartCard title="Six-Month Booking Trend"><VerticalBarChart data={months} color="#176B59"/></ChartCard><ChartCard title="Booking Status Summary"><StatusBars data={[{label:"Completed",value:stats.completed},{label:"Accepted / Working",value:stats.accepted},{label:"Pending",value:stats.pending,color:"#E2A63B"},{label:"Rejected",value:stats.rejected,color:"#C95B58"}]}/></ChartCard><Text className="mb-2 mt-6 font-bold text-[#17342F]">Quick Actions</Text><Action icon="calendar-outline" title="Manage Bookings" subtitle="Open your current service jobs" onPress={()=>router.push("/ServiceProvider/(tabs)/booking")}/><Action icon="chatbubbles-outline" title="Direct Messages" subtitle="Open customer conversations" onPress={()=>router.push("/ServiceProvider/(tabs)/messages")}/><Action icon="shield-checkmark-outline" title="Create Insurance Claim" subtitle={`${claims.filter(x=>x.status==="PENDING").length} pending claim${claims.filter(x=>x.status==="PENDING").length===1?"":"s"}`} onPress={()=>router.push("/ServiceProvider/(tabs)/insurance/create")}/><Pressable onPress={()=>router.push("/ServiceProvider/(tabs)/insurance")} className="mt-2 items-center py-3"><Text className="text-xs font-bold text-[#008568]">VIEW ALL INSURANCE CLAIMS</Text></Pressable></ScrollView>}
-function Stat({label,value}){return<View className="mb-3 w-[48%] rounded-2xl bg-white p-4"><Text className="text-2xl font-bold text-[#008568]">{value}</Text><Text className="mt-1 text-[10px] text-[#71807C]">{label}</Text></View>}
-function ChartCard({title,children}){return<View className="mt-5 rounded-3xl bg-white p-5"><Text className="mb-5 font-bold text-[#17342F]">{title}</Text>{children}</View>}
-function Action({icon,title,subtitle,onPress}){return<Pressable onPress={onPress} className="mb-3 flex-row items-center rounded-2xl bg-white p-4"><View className="h-11 w-11 items-center justify-center rounded-xl bg-[#DDF4EC]"><Ionicons name={icon} size={22} color="#008568"/></View><View className="ml-3 flex-1"><Text className="font-bold text-[#17342F]">{title}</Text><Text className="mt-1 text-[10px] text-[#71807C]">{subtitle}</Text></View><Ionicons name="chevron-forward" size={18} color="#008568"/></Pressable>}
+import { getProviderBookings } from "../../../../lib/booking";
+import { getMyClaims } from "../../../../lib/insuranceClaim";
+import {
+  StatusBars,
+  VerticalBarChart,
+} from "../../../components/dashboard/DashboardCharts";
+
+const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+export default function ProviderDashboard() {
+  const router = useRouter();
+
+  const [bookings, setBookings] = useState([]);
+  const [claims, setClaims] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const [b, c] = await Promise.all([
+        getProviderBookings(),
+        getMyClaims(),
+      ]);
+
+      setBookings(b.bookings || []);
+      setClaims(c.claims || []);
+    } catch (e) {
+      Alert.alert(
+        "Dashboard unavailable",
+        e?.response?.data?.message || "Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  const stats = useMemo(
+    () => ({
+      pending: bookings.filter((x) => x.status === "PENDING").length,
+
+      accepted: bookings.filter((x) =>
+        ["ACCEPTED", "WORKING"].includes(x.status)
+      ).length,
+
+      completed: bookings.filter((x) => x.status === "COMPLETED").length,
+
+      rejected: bookings.filter((x) => x.status === "REJECTED").length,
+    }),
+    [bookings]
+  );
+
+  const week = useMemo(
+    () =>
+      dayLabels.map((label, index) => ({
+        label,
+        value: bookings.filter(
+          (x) =>
+            x.status === "COMPLETED" &&
+            new Date(x.completedAt || x.updatedAt).getDay() === index
+        ).length,
+      })),
+    [bookings]
+  );
+
+  const months = useMemo(() => {
+    const now = new Date();
+
+    return Array.from({ length: 6 }, (_, offset) => {
+      const d = new Date(
+        now.getFullYear(),
+        now.getMonth() - 5 + offset,
+        1
+      );
+
+      return {
+        label: d.toLocaleDateString([], { month: "short" }),
+
+        value: bookings.filter((x) => {
+          const created = new Date(x.createdAt);
+
+          return (
+            created.getMonth() === d.getMonth() &&
+            created.getFullYear() === d.getFullYear()
+          );
+        }).length,
+      };
+    });
+  }, [bookings]);
+
+  if (loading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-[#EAF2EF]">
+        <ActivityIndicator color="#008568" />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      className="flex-1 bg-[#EAF2EF]"
+      contentContainerStyle={{
+        padding: 20,
+        paddingTop: 52,
+        paddingBottom: 35,
+      }}
+    >
+      <Text className="text-2xl font-bold text-[#17342F]">
+        Provider Dashboard
+      </Text>
+
+      <Text className="mt-1 text-xs text-[#71807C]">
+        Your live workload and service activity
+      </Text>
+
+      <View className="mt-5 flex-row items-center rounded-2xl bg-white p-4">
+        <View className="h-3 w-3 rounded-full bg-[#00A47B]" />
+
+        <View className="ml-3 flex-1">
+          <Text className="font-bold text-[#17342F]">
+            Available
+          </Text>
+
+          <Text className="text-[10px] text-[#71807C]">
+            Online · Accepting new jobs
+          </Text>
+        </View>
+      </View>
+
+      <Text className="mb-2 mt-6 font-bold text-[#17342F]">
+        Booking Overview
+      </Text>
+
+      <View className="flex-row flex-wrap justify-between">
+        <Stat label="Pending" value={stats.pending} />
+
+        <Stat
+          label="Accepted / Working"
+          value={stats.accepted}
+        />
+
+        <Stat
+          label="Completed"
+          value={stats.completed}
+        />
+
+        <Stat
+          label="Rejected"
+          value={stats.rejected}
+        />
+      </View>
+
+      <ChartCard title="Weekly Completions">
+        <VerticalBarChart data={week} />
+      </ChartCard>
+
+      <ChartCard title="Six-Month Booking Trend">
+        <VerticalBarChart
+          data={months}
+          color="#176B59"
+        />
+      </ChartCard>
+
+      <ChartCard title="Booking Status Summary">
+        <StatusBars
+          data={[
+            {
+              label: "Completed",
+              value: stats.completed,
+            },
+            {
+              label: "Accepted / Working",
+              value: stats.accepted,
+            },
+            {
+              label: "Pending",
+              value: stats.pending,
+              color: "#E2A63B",
+            },
+            {
+              label: "Rejected",
+              value: stats.rejected,
+              color: "#C95B58",
+            },
+          ]}
+        />
+      </ChartCard>
+
+      <Text className="mb-2 mt-6 font-bold text-[#17342F]">
+        Quick Actions
+      </Text>
+
+      <Action
+        icon="calendar-outline"
+        title="Manage Bookings"
+        subtitle="Open your current service jobs"
+        onPress={() =>
+          router.push("/ServiceProvider/(tabs)/booking")
+        }
+      />
+
+      <Action
+        icon="chatbubbles-outline"
+        title="Direct Messages"
+        subtitle="Open customer conversations"
+        onPress={() =>
+          router.push("/ServiceProvider/(tabs)/messages")
+        }
+      />
+
+      <Action
+        icon="shield-checkmark-outline"
+        title="Create Insurance Claim"
+        subtitle={`${
+          claims.filter((x) => x.status === "PENDING").length
+        } pending claim${
+          claims.filter((x) => x.status === "PENDING").length === 1
+            ? ""
+            : "s"
+        }`}
+        onPress={() =>
+          router.push("/ServiceProvider/(tabs)/insurance/create")
+        }
+      />
+
+      <Pressable
+        onPress={() =>
+          router.push("/ServiceProvider/(tabs)/insurance")
+        }
+        className="mt-2 items-center py-3"
+      >
+        <Text className="text-xs font-bold text-[#008568]">
+          VIEW ALL INSURANCE CLAIMS
+        </Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+function Stat({ label, value }) {
+  return (
+    <View className="mb-3 w-[48%] rounded-2xl bg-white p-4">
+      <Text className="text-2xl font-bold text-[#008568]">
+        {value}
+      </Text>
+
+      <Text className="mt-1 text-[10px] text-[#71807C]">
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function ChartCard({ title, children }) {
+  return (
+    <View className="mt-5 rounded-3xl bg-white p-5">
+      <Text className="mb-5 font-bold text-[#17342F]">
+        {title}
+      </Text>
+
+      {children}
+    </View>
+  );
+}
+
+function Action({
+  icon,
+  title,
+  subtitle,
+  onPress,
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="mb-3 flex-row items-center rounded-2xl bg-white p-4"
+    >
+      <View className="h-11 w-11 items-center justify-center rounded-xl bg-[#DDF4EC]">
+        <Ionicons
+          name={icon}
+          size={22}
+          color="#008568"
+        />
+      </View>
+
+      <View className="ml-3 flex-1">
+        <Text className="font-bold text-[#17342F]">
+          {title}
+        </Text>
+
+        <Text className="mt-1 text-[10px] text-[#71807C]">
+          {subtitle}
+        </Text>
+      </View>
+
+      <Ionicons
+        name="chevron-forward"
+        size={18}
+        color="#008568"
+      />
+    </Pressable>
+  );
+}

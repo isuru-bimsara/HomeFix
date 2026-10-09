@@ -1,0 +1,1 @@
+import UserManagement from "@/components/users/UserManagement";export default function Page(){return <UserManagement role="SERVICE_PROVIDER" title="Service providers" description="Monitor provider onboarding, verification and account status." canCreate={false}/>}

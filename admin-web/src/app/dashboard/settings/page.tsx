@@ -1,0 +1,72 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { LogOut, Server, ShieldCheck } from "lucide-react";
+import { PageHeader } from "@/components/ui";
+import { clearSession, getStoredUser } from "@/lib/storage";
+
+export default function Page() {
+  const router = useRouter();
+
+  const user = typeof window !== "undefined" ? getStoredUser() : null;
+
+  return (
+    <>
+      <PageHeader
+        title="Settings"
+        description="Administrator session and environment information."
+      />
+
+      <div className="settings-grid">
+        <section className="panel settings-card">
+          <span>
+            <ShieldCheck />
+          </span>
+
+          <h2>Administrator account</h2>
+
+          <p>{user?.email || "Administrator"}</p>
+
+          <div className="setting-line">
+            <span>Role</span>
+            <b>ADMIN</b>
+          </div>
+
+          <div className="setting-line">
+            <span>Session</span>
+            <b className="online">Active</b>
+          </div>
+        </section>
+
+        <section className="panel settings-card">
+          <span>
+            <Server />
+          </span>
+
+          <h2>API environment</h2>
+
+          <p>Connected HomeFix backend</p>
+
+          <div className="setting-line">
+            <span>Endpoint</span>
+            <b>
+              {process.env.NEXT_PUBLIC_API_URL ||
+                "http://localhost:5000/api"}
+            </b>
+          </div>
+        </section>
+      </div>
+
+      <button
+        className="button danger-button"
+        onClick={() => {
+          clearSession();
+          router.replace("/login");
+        }}
+      >
+        <LogOut size={17} />
+        Log out administrator
+      </button>
+    </>
+  );
+}

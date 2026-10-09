@@ -1,0 +1,1 @@
+import UserManagement from "@/components/users/UserManagement";export default function Page(){return <UserManagement title="User management" description="Create operational accounts and manage access across the HomeFix platform."/>}

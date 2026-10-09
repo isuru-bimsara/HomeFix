@@ -1,0 +1,1 @@
+import UserManagement from "@/components/users/UserManagement";export default function Page(){return <UserManagement role="CUSTOMER" title="Customers" description="Review customer accounts, verification and platform access." canCreate={false}/>}

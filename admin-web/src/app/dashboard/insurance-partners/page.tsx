@@ -1,0 +1,1 @@
+import UserManagement from "@/components/users/UserManagement";export default function Page(){return <UserManagement role="INSURANCE_PARTNER" title="Insurance partners" description="Create and manage approved claim-review partner accounts."/>}

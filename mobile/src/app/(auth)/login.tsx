@@ -15,8 +15,10 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
-import { loginUser } from "../../../lib/auth";
+import { googleLoginUser, loginUser } from "../../../lib/auth";
+import { setPendingGoogleIdToken } from "../../../lib/googleRegistration";
 import { useAuth } from "../../context/AuthContext";
+import GoogleAuthButton from "../../components/auth/GoogleAuthButton";
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -24,6 +26,7 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({ email: "", password: "" });
 
   const { setAuth } = useAuth();
 
@@ -122,8 +125,37 @@ const handleLogin = async () => {
   }
 };
 
-  const handleGoogleLogin = () => {
-    router.push("/(auth)/register-role");
+  const handleGoogleLogin = async (idToken: string) => {
+    try {
+      setLoading(true);
+      const result = await googleLoginUser({ idToken });
+      await setAuth(
+        result.data.accessToken,
+        result.data.refreshToken,
+        result.data.user
+      );
+
+      if (result.data.user.role === "CUSTOMER") {
+        router.replace("/Customer/(tabs)");
+      } else if (result.data.user.role === "SERVICE_PROVIDER") {
+        router.replace("/ServiceProvider/(tabs)");
+      } else {
+        Alert.alert("Google login", "This role cannot use mobile Google login.");
+      }
+    } catch (error: any) {
+      if (error?.response?.data?.code === "GOOGLE_REGISTRATION_REQUIRED") {
+        setPendingGoogleIdToken(idToken);
+        router.push("/(auth)/register-role");
+        return;
+      }
+
+      Alert.alert(
+        "Google login failed",
+        error?.response?.data?.message || "Unable to sign in with Google."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleForgotPassword = () => {
@@ -215,6 +247,10 @@ const handleLogin = async () => {
                   onChangeText={(value) => {
                     setEmail(value);
                     setErrorMessage("");
+                    setFieldErrors((current) => ({
+                      ...current,
+                      email: /^\S+@\S+\.\S+$/.test(value.trim()) ? "" : "Enter a valid email address.",
+                    }));
                   }}
                   placeholder="Enter your email"
                   placeholderTextColor="#8A9995"
@@ -225,6 +261,7 @@ const handleLogin = async () => {
                   className="flex-1 text-[12px] text-[#173A33]"
                 />
               </View>
+              {fieldErrors.email ? <Text className="mt-1 text-[10px] text-red-600">{fieldErrors.email}</Text> : null}
             </View>
 
             {/* Password */}
@@ -239,6 +276,10 @@ const handleLogin = async () => {
                   onChangeText={(value) => {
                     setPassword(value);
                     setErrorMessage("");
+                    setFieldErrors((current) => ({
+                      ...current,
+                      password: value.length >= 8 ? "" : "Password must contain at least 8 characters.",
+                    }));
                   }}
                   placeholder="Enter your password"
                   placeholderTextColor="#8A9995"
@@ -267,6 +308,7 @@ const handleLogin = async () => {
                   />
                 </Pressable>
               </View>
+              {fieldErrors.password ? <Text className="mt-1 text-[10px] text-red-600">{fieldErrors.password}</Text> : null}
 
               {/* Forgot password */}
               <Pressable
@@ -334,18 +376,9 @@ const handleLogin = async () => {
             </View>
 
             {/* Google button */}
-            <Pressable
-              onPress={handleGoogleLogin}
-              className="mt-[14px] h-[48px] flex-row items-center justify-center rounded-full border border-[#CFD9D6] bg-white"
-            >
-              <Text className="absolute left-[19px] text-[20px] font-bold text-[#4285F4]">
-                G
-              </Text>
-
-              <Text className="text-[12px] font-bold text-[#173A33]">
-                Continue with Google
-              </Text>
-            </Pressable>
+            <View className="mt-[14px]">
+              <GoogleAuthButton onToken={handleGoogleLogin} disabled={loading} />
+            </View>
 
             {/* Register */}
             <View className="mt-[27px] items-center">

@@ -1,2 +1,128 @@
-"use client";import { useMemo,useState } from "react";import { Search } from "lucide-react";import { useAdminData } from "@/hooks/useAdminData";import { Empty,ErrorState,Loading,PageHeader,Status,date } from "@/components/ui";
-export default function Page(){const{data,loading,error,reload}=useAdminData();const[q,setQ]=useState("");const[status,setStatus]=useState("ALL");const rows=useMemo(()=>data.bookings.filter(b=>(status==="ALL"||b.status===status)&&`${b.id} ${b.problem} ${b.serviceLocation}`.toLowerCase().includes(q.toLowerCase())),[data.bookings,q,status]);if(loading)return <Loading/>;return <><PageHeader title="Bookings" description="Track every customer request from pending through completion."/>{error&&<ErrorState message={error} retry={reload}/>}<section className="panel"><div className="table-toolbar"><div className="search-field"><Search size={17}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search booking, service or location"/></div><select value={status} onChange={e=>setStatus(e.target.value)}><option>ALL</option>{["PENDING","ACCEPTED","WORKING","COMPLETED","REJECTED"].map(x=><option key={x}>{x}</option>)}</select></div><div className="table-scroll"><table><thead><tr><th>Booking</th><th>Problem</th><th>Location</th><th>Schedule</th><th>Status</th><th>Created</th></tr></thead><tbody>{rows.map(b=><tr key={b.id}><td><b>BK-{b.id.slice(0,8).toUpperCase()}</b></td><td>{b.problem}</td><td>{b.serviceLocation}</td><td>{b.scheduledDate?`${b.scheduledDate} ${b.scheduledTime||""}`:"Awaiting provider"}</td><td><Status value={b.status}/></td><td>{date(b.createdAt)}</td></tr>)}</tbody></table>{!rows.length&&<Empty text="No bookings match this view."/>}</div></section></>}
+"use client";
+
+import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
+import { useAdminData } from "@/hooks/useAdminData";
+import {
+  Empty,
+  ErrorState,
+  Loading,
+  PageHeader,
+  Status,
+  date,
+} from "@/components/ui";
+
+export default function Page() {
+  const { data, loading, error, reload } = useAdminData();
+
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("ALL");
+
+  const rows = useMemo(
+    () =>
+      data.bookings.filter(
+        (b) =>
+          (status === "ALL" || b.status === status) &&
+          `${b.id} ${b.problem} ${b.serviceLocation}`
+            .toLowerCase()
+            .includes(q.toLowerCase())
+      ),
+    [data.bookings, q, status]
+  );
+
+  if (loading) return <Loading />;
+
+  return (
+    <>
+      <PageHeader
+        title="Bookings"
+        description="Track every customer request from pending through completion."
+      />
+
+      {error && (
+        <ErrorState
+          message={error}
+          retry={reload}
+        />
+      )}
+
+      <section className="panel">
+        <div className="table-toolbar">
+          <div className="search-field">
+            <Search size={17} />
+
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search booking, service or location"
+            />
+          </div>
+
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option>ALL</option>
+
+            {[
+              "PENDING",
+              "ACCEPTED",
+              "WORKING",
+              "COMPLETED",
+              "REJECTED",
+            ].map((x) => (
+              <option key={x}>{x}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Booking</th>
+                <th>Problem</th>
+                <th>Location</th>
+                <th>Schedule</th>
+                <th>Status</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {rows.map((b) => (
+                <tr key={b.id}>
+                  <td>
+                    <b>
+                      BK-{b.id.slice(0, 8).toUpperCase()}
+                    </b>
+                  </td>
+
+                  <td>{b.problem}</td>
+
+                  <td>{b.serviceLocation}</td>
+
+                  <td>
+                    {b.scheduledDate
+                      ? `${b.scheduledDate} ${b.scheduledTime || ""}`
+                      : "Awaiting provider"}
+                  </td>
+
+                  <td>
+                    <Status value={b.status} />
+                  </td>
+
+                  <td>{date(b.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {!rows.length && (
+            <Empty text="No bookings match this view." />
+          )}
+        </div>
+      </section>
+    </>
+  );
+}

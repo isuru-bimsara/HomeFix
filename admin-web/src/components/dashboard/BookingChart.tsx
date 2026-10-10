@@ -1,0 +1,1 @@
+export default function BookingChart({values}:{values:number[]}){const max=Math.max(...values,1);return <div className="chart"><div className="chart-bars">{values.map((v,i)=><div className="bar-slot" key={i}><div className="bar" style={{height:`${Math.max(8,v/max*100)}%`}}/><span>{["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][i]}</span></div>)}</div></div>}

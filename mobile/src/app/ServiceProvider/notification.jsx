@@ -1,2 +1,2 @@
-import NotificationCenter from "../../../components/notifications/NotificationCenter";
+import NotificationCenter from "../../../../mobile/src/components/notifications/NotificationCenter";
 export default NotificationCenter;

@@ -1,3 +1,225 @@
-import React,{useCallback,useState}from"react";import{ActivityIndicator,Alert,FlatList,Pressable,Text,View}from"react-native";import{Ionicons}from"@expo/vector-icons";import{useFocusEffect,useRouter}from"expo-router";import{useAuth}from"../../context/AuthContext";import{deleteNotification,getNotifications,markAllNotificationsRead,markNotificationRead}from"../../../lib/notification";
-const iconFor=(type)=>type.includes("MESSAGE")?"chatbubble-outline":type.includes("CLAIM")?"shield-checkmark-outline":"calendar-outline";
-export default function NotificationCenter(){const router=useRouter();const{user}=useAuth();const[items,setItems]=useState([]);const[loading,setLoading]=useState(true);const load=useCallback(async()=>{try{setItems((await getNotifications()).notifications||[]);}catch(e){Alert.alert("Unable to load notifications",e?.response?.data?.message||"Please try again.");}finally{setLoading(false);}},[]);useFocusEffect(useCallback(()=>{load();},[load]));const open=async(item)=>{if(!item.isRead){await markNotificationRead(item.id);setItems(x=>x.map(n=>n.id===item.id?{...n,isRead:true}:n));}const d=item.data||{};if(item.entityType==="BOOKING"){if(item.type==="BOOKING_MESSAGE")router.push({pathname:user?.role==="CUSTOMER"?"/Customer/(tabs)/booking/messages/[bookingId]":"/ServiceProvider/(tabs)/booking/messages/[bookingId]",params:{bookingId:d.bookingId||item.entityId}});else router.push({pathname:user?.role==="CUSTOMER"?"/Customer/(tabs)/booking/booking-details/[id]":"/ServiceProvider/(tabs)/booking/[id]",params:{id:d.bookingId||item.entityId}});}else if(item.entityType==="CLAIM")router.push({pathname:user?.role==="INSURANCE_PARTNER"?"/InsuarancePartner/(tabs)/claims/[id]":"/ServiceProvider/(tabs)/insurance/[id]",params:{id:d.claimId||item.entityId}});else if(item.type==="MESSAGE")router.push({pathname:user?.role==="CUSTOMER"?"/Customer/(tabs)/messages/[userId]":"/ServiceProvider/(tabs)/messages/[userId]",params:{userId:d.participantId}});};const remove=(item)=>Alert.alert("Delete notification?",undefined,[{text:"Cancel",style:"cancel"},{text:"Delete",style:"destructive",onPress:async()=>{await deleteNotification(item.id);setItems(x=>x.filter(n=>n.id!==item.id));}}]);if(loading)return<View className="flex-1 items-center justify-center bg-[#EAF2EF]"><ActivityIndicator color="#008568"/></View>;return<View className="flex-1 bg-[#EAF2EF] px-5 pt-14"><View className="mb-5 flex-row items-center"><Text className="flex-1 text-3xl font-bold text-[#17342F]">Notifications</Text><Pressable onPress={async()=>{await markAllNotificationsRead();setItems(x=>x.map(n=>({...n,isRead:true})));}}><Text className="text-xs font-bold text-[#008568]">Mark all read</Text></Pressable></View><FlatList data={items} keyExtractor={x=>x.id} ListEmptyComponent={<Text className="mt-16 text-center text-[#71807C]">No notifications yet.</Text>} renderItem={({item})=><Pressable onPress={()=>open(item)} onLongPress={()=>remove(item)} className={`mb-3 flex-row items-center rounded-3xl border p-4 ${item.isRead?"border-[#D7E1DE] bg-white":"border-[#83BFAF] bg-[#F4FFFB]"}`}><View className="h-12 w-12 items-center justify-center rounded-full bg-[#DDF4EC]"><Ionicons name={iconFor(item.type)} size={22} color="#008568"/></View><View className="ml-3 flex-1"><View className="flex-row items-center"><Text className="flex-1 font-bold text-[#17342F]">{item.title}</Text>{!item.isRead&&<View className="h-2 w-2 rounded-full bg-[#008568]"/>}</View><Text className="mt-1 text-xs leading-5 text-[#71807C]">{item.body}</Text><Text className="mt-2 text-[9px] text-[#9AA6A2]">{new Date(item.createdAt).toLocaleString()}</Text></View><Pressable onPress={()=>remove(item)} className="ml-2 p-2"><Ionicons name="trash-outline" size={17} color="#A55A57"/></Pressable></Pressable>} /></View>}
+import React, { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  Text,
+  View,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useRouter } from "expo-router";
+
+import { useAuth } from "../../context/AuthContext";
+import {
+  deleteNotification,
+  getNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "../../../lib/notification";
+
+const iconFor = (type) =>
+  type.includes("MESSAGE")
+    ? "chatbubble-outline"
+    : type.includes("CLAIM")
+      ? "shield-checkmark-outline"
+      : "calendar-outline";
+
+export default function NotificationCenter() {
+  const router = useRouter();
+  const { user } = useAuth();
+
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      setItems((await getNotifications()).notifications || []);
+    } catch (e) {
+      Alert.alert(
+        "Unable to load notifications",
+        e?.response?.data?.message || "Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  const open = async (item) => {
+    if (!item.isRead) {
+      await markNotificationRead(item.id);
+
+      setItems((x) =>
+        x.map((n) =>
+          n.id === item.id ? { ...n, isRead: true } : n
+        )
+      );
+    }
+
+    const d = item.data || {};
+
+    if (item.entityType === "BOOKING") {
+      if (item.type === "BOOKING_MESSAGE") {
+        router.push({
+          pathname:
+            user?.role === "CUSTOMER"
+              ? "/Customer/(tabs)/booking/messages/[bookingId]"
+              : "/ServiceProvider/(tabs)/booking/messages/[bookingId]",
+          params: {
+            bookingId: d.bookingId || item.entityId,
+          },
+        });
+      } else {
+        router.push({
+          pathname:
+            user?.role === "CUSTOMER"
+              ? "/Customer/(tabs)/booking/booking-details/[id]"
+              : "/ServiceProvider/(tabs)/booking/[id]",
+          params: {
+            id: d.bookingId || item.entityId,
+          },
+        });
+      }
+    } else if (item.entityType === "CLAIM") {
+      router.push({
+        pathname:
+          user?.role === "INSURANCE_PARTNER"
+            ? "/InsuarancePartner/(tabs)/claims/[id]"
+            : "/ServiceProvider/(tabs)/insurance/[id]",
+        params: {
+          id: d.claimId || item.entityId,
+        },
+      });
+    } else if (item.type === "MESSAGE") {
+      router.push({
+        pathname:
+          user?.role === "CUSTOMER"
+            ? "/Customer/(tabs)/messages/[userId]"
+            : "/ServiceProvider/(tabs)/messages/[userId]",
+        params: {
+          userId: d.participantId,
+        },
+      });
+    }
+  };
+
+  const remove = (item) =>
+    Alert.alert("Delete notification?", undefined, [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          await deleteNotification(item.id);
+
+          setItems((x) =>
+            x.filter((n) => n.id !== item.id)
+          );
+        },
+      },
+    ]);
+
+  if (loading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-[#EAF2EF]">
+        <ActivityIndicator color="#008568" />
+      </View>
+    );
+  }
+
+  return (
+    <View className="flex-1 bg-[#EAF2EF] px-5 pt-14">
+      <View className="mb-5 flex-row items-center">
+        <Text className="flex-1 text-3xl font-bold text-[#17342F]">
+          Notifications
+        </Text>
+
+        <Pressable
+          onPress={async () => {
+            await markAllNotificationsRead();
+
+            setItems((x) =>
+              x.map((n) => ({
+                ...n,
+                isRead: true,
+              }))
+            );
+          }}
+        >
+          <Text className="text-xs font-bold text-[#008568]">
+            Mark all read
+          </Text>
+        </Pressable>
+      </View>
+
+      <FlatList
+        data={items}
+        keyExtractor={(x) => x.id}
+        ListEmptyComponent={
+          <Text className="mt-16 text-center text-[#71807C]">
+            No notifications yet.
+          </Text>
+        }
+        renderItem={({ item }) => (
+          <Pressable
+            onPress={() => open(item)}
+            onLongPress={() => remove(item)}
+            className={`mb-3 flex-row items-center rounded-3xl border p-4 ${
+              item.isRead
+                ? "border-[#D7E1DE] bg-white"
+                : "border-[#83BFAF] bg-[#F4FFFB]"
+            }`}
+          >
+            <View className="h-12 w-12 items-center justify-center rounded-full bg-[#DDF4EC]">
+              <Ionicons
+                name={iconFor(item.type)}
+                size={22}
+                color="#008568"
+              />
+            </View>
+
+            <View className="ml-3 flex-1">
+              <View className="flex-row items-center">
+                <Text className="flex-1 font-bold text-[#17342F]">
+                  {item.title}
+                </Text>
+
+                {!item.isRead && (
+                  <View className="h-2 w-2 rounded-full bg-[#008568]" />
+                )}
+              </View>
+
+              <Text className="mt-1 text-xs leading-5 text-[#71807C]">
+                {item.body}
+              </Text>
+
+              <Text className="mt-2 text-[9px] text-[#9AA6A2]">
+                {new Date(item.createdAt).toLocaleString()}
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={() => remove(item)}
+              className="ml-2 p-2"
+            >
+              <Ionicons
+                name="trash-outline"
+                size={17}
+                color="#A55A57"
+              />
+            </Pressable>
+          </Pressable>
+        )}
+      />
+    </View>
+  );
+}
